@@ -135,3 +135,24 @@ The repo ships an Antigravity `PreToolUse` safety gate at `.agents/hooks.json`
 + `.agents/hooks/block-destructive-ops.sh`. It denies irreversible shell
 commands (`git push --force`, `git reset --hard`, `rm -rf /`, `chmod 777`,
 `curl | bash`, …) for every agent conversation in this project.
+
+## GitHub Workflows
+
+This repository includes automated GitHub Actions workflows powered by Google Antigravity and Vertex AI:
+
+1. **Antigravity Coder** ([`.github/workflows/antigravity-coder.yml`](.github/workflows/antigravity-coder.yml)):
+   - **Trigger:** Triggered when a comment starting with `/implement` is posted on an issue (non-PR).
+   - **Action:** Autonomous coding agent implements the issue request and creates a pull request.
+2. **Antigravity PR Reviewer** ([`.github/workflows/antigravity-pr-reviewer.yml`](.github/workflows/antigravity-pr-reviewer.yml)):
+   - **Trigger:** Runs automatically on pull request events (`opened`, `synchronize`, `reopened`) or via comment `/review-sdk` on a pull request.
+   - **Action:** Inspects PR changes, diffs, and comments, uses skills defined locally in `.agents/skills`, and leaves automated code quality and architectural review comments directly on the PR.
+
+### Required GitHub Environment Configuration
+
+To run these workflows, configure the following GitHub repository variables (`vars`) and permissions:
+
+| Name | Type | Used by | Description |
+|---|---|---|---|
+| `WORKLOAD_IDENTITY_PROVIDER` | Repository Variable (`vars`) | Coder, PR Reviewer | Full resource name of the Google Cloud Workload Identity Federation provider used by `google-github-actions/auth`. |
+| `GOOGLE_PROJECT_ID` | Repository Variable (`vars`) | Coder, PR Reviewer | Google Cloud Project ID where Vertex AI is enabled. |
+| `GITHUB_TOKEN` | Automatic Secret (`secrets`) | Coder, PR Reviewer | GitHub Actions built-in token (requires `issues: write`, `pull-requests: write`, and `contents: write` permissions enabled). |
