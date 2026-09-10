@@ -40,9 +40,18 @@ async def main():
     async with Agent(config=config) as agent:
         try:
             response = await asyncio.wait_for(agent.chat(instructions), timeout=timeout_seconds)
+
+            print("Agent (Streaming thoughts):", flush=True)
+            print("-------------------------------------------------------", flush=True)
+            async for thought in response.thoughts:
+                print(thought, end="", flush=True)
+            print("\n-------------------------------------------------------\n", flush=True)
+
+            print("Agent (Streaming final answer):", flush=True)
+            print("-------------------------------------------------------", flush=True)
             async for token in response:
                 print(token, end="", flush=True)
-            print()
+            print("\n-------------------------------------------------------\n", flush=True)
         except asyncio.TimeoutError:
             print(f"Error: Interaction timed out after {timeout_seconds} seconds.", file=sys.stderr)
             sys.exit(1)
