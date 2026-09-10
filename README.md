@@ -144,7 +144,7 @@ This repository includes automated GitHub Actions workflows powered by Google An
    - **Trigger:** Triggered when a comment starting with `/implement` is posted on an issue (non-PR).
    - **Action:** Autonomous coding agent implements the issue request and creates a pull request.
 2. **Antigravity PR Reviewer** ([`.github/workflows/antigravity-pr-reviewer.yml`](.github/workflows/antigravity-pr-reviewer.yml)):
-   - **Trigger:** Runs automatically on pull request events (`opened`, `synchronize`, `reopened`) or via comment `/review-sdk` on a pull request.
+   - **Trigger:** Runs automatically on pull request events (`opened`, `synchronize`, `reopened`) or via comment `/review` on a pull request.
    - **Action:** Inspects PR changes, diffs, and comments, uses skills defined locally in `.agents/skills`, and leaves automated code quality and architectural review comments directly on the PR.
 
 ### Required GitHub Environment Configuration
