@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <pattern>
+                    <pattern>
+                        {
+                            "timestamp": "%date{yyyy-MM-dd'T'HH:mm:ss.SSS'Z',UTC}",
+                            "level": "%level",
+                            "service": "ledger",
+                            "message": "%message",
+                            "trace_id": "%mdc{traceId:-}",
+                            "span_id": "%mdc{spanId:-}",
+                            "exception": "%exception"
+                        }
+                    </pattern>
+                </pattern>
+            </providers>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+</configuration>
