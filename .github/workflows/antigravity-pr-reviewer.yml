@@ -33,18 +33,28 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
           REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          COMMENT_ID: ${{ github.event.comment.id }}
         run: |
-          COMMENT_BODY=$(cat << 'EOF'
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$EVENT_ACTION" = "opened" ]; then
+            COMMENT_BODY=$(cat << 'EOF'
           👋 **Hello!** I'm the **Antigravity AI Code Reviewer**.
 
           I am currently analyzing your pull request changes, checking for code quality, architectural consistency, and potential issues.
 
           ### 📋 What to expect:
           - **In-line feedback & suggestions**: I will post review comments directly on your PR.
-          - **Re-running a review**: If you make updates or want me to take another look, simply comment `/review-sdk` anywhere on this PR!
+          - **Re-running a review**: If you make updates or want me to take another look, simply comment `/review` anywhere on this PR!
           EOF
-          )
-          gh issue comment "$PR_NUMBER" --repo "$REPO" --body "$COMMENT_BODY"
+            )
+            gh issue comment "$PR_NUMBER" --repo "$REPO" --body "$COMMENT_BODY"
+          elif [ "$EVENT_NAME" = "pull_request" ] && [ "$EVENT_ACTION" = "synchronize" ]; then
+            gh issue comment "$PR_NUMBER" --repo "$REPO" --body "🔄 New changes detected. Re-running code quality and compliance review..."
+          elif [ "$EVENT_NAME" = "issue_comment" ]; then
+            gh api "repos/$REPO/issues/comments/$COMMENT_ID/reactions" -f content='eyes' || true
+            gh issue comment "$PR_NUMBER" --repo "$REPO" --body "👀 Review requested via comment. Starting review..."
+          fi
 
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1

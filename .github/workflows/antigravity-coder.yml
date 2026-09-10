@@ -31,7 +31,17 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           REPO: ${{ github.repository }}
         run: |
-          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "The autonomous Antigravity agent is working on it."
+          COMMENT_BODY=$(cat << 'EOF'
+          👋 **Hello!** I'm the **Antigravity Autonomous Coding Agent**.
+
+          I am currently working on implementing the requested changes for this issue.
+
+          ### 📋 What to expect:
+          - **Autonomous Implementation**: I will analyze the issue, implement the necessary changes, and open a pull request.
+          - **Triggering Again**: If you have further requirements or want another run, comment `/implement <instructions>` on this issue!
+          EOF
+          )
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$COMMENT_BODY"
 
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
@@ -62,3 +72,19 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           python .github/scripts/coder.py
+
+      - name: Post Success Comment
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          COMMENT_BODY=$(cat << 'EOF'
+          ✅ **Implementation Completed!**
+
+          The Antigravity coding agent has finished processing this issue and opened a pull request with the changes. Please inspect the PR for details and start a review.
+          EOF
+          )
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$COMMENT_BODY"
+

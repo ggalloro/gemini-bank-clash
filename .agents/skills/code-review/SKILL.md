@@ -35,15 +35,15 @@ To conduct a thorough and efficient code review, execute a streamlined 3-step wo
        - Do NOT run `git diff --name-only`, `git branch -r`, or `git log`.
        - Do NOT issue `curl` REST API calls for PR metadata, and avoid running test suites (`vitest`, `jest`, `npm test`) unless explicitly requested.
 
-3. **Submitting Review via GitHub API**:
-   - Submit review findings directly using the pre-built CLI helper script in `github-api` (`skills/github-api/scripts/submit_review.py`) in a single execution using inline command-line arguments:
+3. **Submitting Review via GitHub CLI**:
+   - Submit review findings directly using the GitHub CLI (`gh`):
      ```bash
-     python3 skills/github-api/scripts/submit_review.py --repo "${GITHUB_REPOSITORY}" --pr "${PR_NUMBER}" --commit "${HEAD_SHA}" --body "Summary of findings..." --comments-json '[{"path": "file.js", "line": 10, "body": "comment"}]'
+     gh pr review "${PR_NUMBER}" --comment --body "Summary of findings..."
      ```
-   - **Note**: Do NOT write temporary `payload.json` files via `create_file`. Pass comments directly via `--comments-json`.
+   - For line-specific comments, you can add comments or reviews directly using the `gh` CLI or GitHub API.
 
 4. **Skill Integration & Extensibility**:
-   - Feel free to load and combine any available or future workspace skills (such as `git`, `github-api`, `enterprise-guardrails`, domain-specific, or testing skills) as required by the code review task.
+   - Feel free to load and combine any available or future workspace skills (such as `git`, domain-specific, or testing skills) as required by the code review task.
 
 ---
 
