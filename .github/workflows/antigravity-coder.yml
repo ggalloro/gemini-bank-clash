@@ -1,0 +1,90 @@
+name: Antigravity Coder
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  implement-issue:
+    name: Implement Issue Instructions
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request == null &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) &&
+      startsWith(github.event.comment.body, '/implement')
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Post Status Comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          COMMENT_BODY=$(cat << 'EOF'
+          👋 **Hello!** I'm the **Antigravity Autonomous Coding Agent**.
+
+          I am currently working on implementing the requested changes for this issue.
+
+          ### 📋 What to expect:
+          - **Autonomous Implementation**: I will analyze the issue, implement the necessary changes, and open a pull request.
+          - **Triggering Again**: If you have further requirements or want another run, comment `/implement <instructions>` on this issue!
+          EOF
+          )
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$COMMENT_BODY"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v3'
+        with:
+          create_credentials_file: true
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install "google-genai>=2.3.0"
+
+      - name: Run Antigravity Coder
+        env:
+          CODER_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GOOGLE_PROJECT_ID: ${{ vars.GOOGLE_PROJECT_ID }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          python .github/scripts/coder.py
+
+      - name: Post Success Comment
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          COMMENT_BODY=$(cat << 'EOF'
+          ✅ **Implementation Completed!**
+
+          The Antigravity coding agent has finished processing this issue and opened a pull request with the changes. Please inspect the PR for details and start a review.
+          EOF
+          )
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$COMMENT_BODY"
+
