@@ -12,7 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'pull_request' ||
-      github.event_name == 'issue_comment' && github.event.issue.pull_request != null && startsWith(github.event.comment.body, '/review')
+      (github.event_name == 'issue_comment' && 
+      github.event.issue.pull_request != null && 
+      startsWith(github.event.comment.body, '/review') &&
+      contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association))
     permissions:
       contents: read
       pull-requests: write
@@ -24,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.event.issue.pull_request && format('refs/pull/{0}/head', github.event.issue.number) }}
 
@@ -57,7 +60,7 @@ jobs:
           fi
 
       - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
+        uses: google-github-actions/setup-gcloud@v2
 
       - id: 'auth'
         name: 'Authenticate to Google Cloud'
@@ -93,14 +96,14 @@ jobs:
           ' > ./pr_assets/pr_comments.txt
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install google-antigravity google-genai>=2.3.0
+          pip install google-antigravity "google-genai>=2.3.0"
 
       - name: Run Antigravity SDK Review
         env:
