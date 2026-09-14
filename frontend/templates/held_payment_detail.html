@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <a href="{{ url_for('held_payments') }}" class="btn btn-outline-secondary btn-sm">&larr; All Held Payments</a>
+      <span class="text-muted small">Payment Reference #{{ payment.id }}</span>
+    </div>
+
+    <!-- Hero Image Card -->
+    <div class="card shadow-sm border-0 mb-4 overflow-hidden">
+      <div class="text-center bg-dark p-3">
+        <img
+          src="{{ url_for('static', filename='shield_protecting_notes.png') }}"
+          alt="AI Fraud Protection Shield"
+          class="img-fluid rounded"
+          style="max-height: 260px; object-fit: cover; width: 100%;"
+        />
+      </div>
+      <div class="card-body">
+        {% if payment.status == 'held' %}
+          <div class="alert alert-warning d-flex align-items-center mb-4" role="alert">
+            <div class="me-3 fs-3">🛡️</div>
+            <div>
+              <h5 class="alert-heading mb-1">Held for your review</h5>
+              <div>We paused this outgoing payment before any money moved to protect your account. Please review the details below.</div>
+            </div>
+          </div>
+        {% elif payment.status == 'approved' %}
+          <div class="alert alert-success d-flex align-items-center mb-4" role="alert">
+            <div class="me-3 fs-3">✅</div>
+            <div>
+              <h5 class="alert-heading mb-1">Payment Approved</h5>
+              <div>You reviewed and approved this payment. Funds have been sent.</div>
+            </div>
+          </div>
+        {% elif payment.status == 'rejected' %}
+          <div class="alert alert-secondary d-flex align-items-center mb-4" role="alert">
+            <div class="me-3 fs-3">🛑</div>
+            <div>
+              <h5 class="alert-heading mb-1">Payment Rejected</h5>
+              <div>This payment was rejected and discarded. No money moved from your account.</div>
+            </div>
+          </div>
+        {% endif %}
+
+        <!-- Payment Details Summary -->
+        <div class="row g-3 mb-4">
+          <div class="col-sm-6">
+            <div class="p-3 bg-light rounded">
+              <div class="text-muted small">Amount</div>
+              <div class="fs-4 fw-bold text-dark">€{{ payment.amount }}</div>
+            </div>
+          </div>
+          <div class="col-sm-6">
+            <div class="p-3 bg-light rounded">
+              <div class="text-muted small">Beneficiary</div>
+              <div class="fs-5 fw-semibold text-truncate">
+                {% if payment.beneficiary_type == 'internal' %}
+                  Internal Account #{{ payment.beneficiary_account_id }}
+                {% else %}
+                  {{ payment.beneficiary_name or 'Unknown recipient' }}
+                  <div class="small text-muted">{{ payment.beneficiary_iban }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% if payment.description %}
+          <div class="col-12">
+            <div class="p-3 bg-light rounded">
+              <div class="text-muted small">Payment memo / note</div>
+              <div class="text-dark fst-italic">“{{ payment.description }}”</div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+
+        <!-- Fraud Assessment Card -->
+        <div class="card border mb-4">
+          <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <span class="fw-bold">AI Fraud Assessment</span>
+            <div>
+              {% if payment.risk_level == 'High' %}
+                <span class="badge bg-danger fs-6 px-3 py-2">High risk</span>
+              {% elif payment.risk_level == 'Medium' %}
+                <span class="badge bg-warning text-dark fs-6 px-3 py-2">Suspicious</span>
+              {% else %}
+                <span class="badge bg-success fs-6 px-3 py-2">No clear risk</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <span class="text-muted small d-block">Suspected Fraud Pattern</span>
+              <span class="fw-bold fs-5 text-danger">{{ payment.fraud_type }}</span>
+            </div>
+
+            <div class="mb-3">
+              <span class="text-muted small d-block">Why was this held?</span>
+              <p class="mb-0 text-secondary" style="font-size: 1.05rem; line-height: 1.6;">
+                {{ payment.explanation }}
+              </p>
+            </div>
+
+            {% if payment.red_flags %}
+            <div class="mt-4">
+              <span class="text-muted small d-block mb-2">Specific Risk Factors Detected</span>
+              <div class="list-group">
+                {% for flag in payment.red_flags %}
+                <div class="list-group-item list-group-item-light border-start border-3 border-warning">
+                  <div class="fw-semibold text-dark">⚠️ {{ flag.flag }}</div>
+                  <div class="small text-muted mt-1">{{ flag.reason }}</div>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Actions -->
+        {% if payment.status == 'held' %}
+        <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center gap-3 p-3 bg-light rounded">
+          <div>
+            <div class="fw-semibold text-dark">Do you still want to proceed?</div>
+            <small class="text-muted">If you suspect you are being scammed, cancel this payment immediately.</small>
+          </div>
+          <div class="d-flex gap-2">
+            <form method="POST" action="{{ url_for('reject_held_payment', held_id=payment.id) }}" class="m-0">
+              <button type="submit" class="btn btn-outline-danger px-3" onclick="return confirm('Discard this payment? No money will be sent.');">
+                Reject payment
+              </button>
+            </form>
+            <form method="POST" action="{{ url_for('approve_held_payment', held_id=payment.id) }}" class="m-0">
+              <button type="submit" class="btn btn-success px-4" onclick="return confirm('Send €{{ payment.amount }} to {{ payment.beneficiary_name or payment.beneficiary_iban }} now?');">
+                Approve payment
+              </button>
+            </form>
+          </div>
+        </div>
+        {% else %}
+        <div class="text-center p-3 bg-light rounded text-muted">
+          This payment was resolved on {{ payment.resolved_at[:19].replace('T', ' ') if payment.resolved_at else 'N/A' }}.
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

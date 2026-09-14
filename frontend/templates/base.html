@@ -14,7 +14,15 @@
       <div class="ms-auto">
         {% if logged_in %}
           <span class="navbar-text text-white me-3">{{ full_name }}</span>
-          <a class="btn btn-outline-light btn-sm" href="{{ url_for('dashboard') }}">Dashboard</a>
+          <a class="btn btn-outline-light btn-sm me-2 position-relative" href="{{ url_for('held_payments') }}">
+            🛡️ Held payments
+            {% if held_count and held_count > 0 %}
+            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+              {{ held_count }}
+            </span>
+            {% endif %}
+          </a>
+          <a class="btn btn-outline-light btn-sm me-2" href="{{ url_for('dashboard') }}">Dashboard</a>
           <a class="btn btn-outline-light btn-sm" href="{{ url_for('logout') }}">Log out</a>
         {% else %}
           <a class="btn btn-outline-light btn-sm" href="{{ url_for('login') }}">Log in</a>
