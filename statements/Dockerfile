@@ -1,12 +1,24 @@
-FROM python:3.12-slim
+# Build stage
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY go.mod ./
+RUN go mod download
 
 COPY . .
 
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /statements .
+
+# Runtime stage
+FROM alpine:3.20
+
+RUN apk --no-cache add curl ca-certificates
+
+WORKDIR /app
+
+COPY --from=builder /statements /app/statements
+
 EXPOSE 8083
 
-CMD ["gunicorn", "--bind", "0.0.0.0:8083", "--workers", "2", "app:app"]
+ENTRYPOINT ["/app/statements"]
