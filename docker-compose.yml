@@ -66,12 +66,36 @@ services:
       retries: 5
       start_period: 5s
 
+  fraud:
+    build: ./fraud
+    environment:
+      TOKEN_SECRET: ${TOKEN_SECRET:-demo-shared-secret}
+      LEDGER_URL: http://ledger:8082
+      FRAUD_DB: /data/fraud.db
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      NANOBANANA_API_KEY: ${NANOBANANA_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.7-flash}
+    volumes:
+      - fraud-data:/data
+    ports:
+      - "${FRAUD_PORT:-8084}:8084"
+    depends_on:
+      ledger:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8084/healthz').status==200 else sys.exit(1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
   frontend:
     build: ./frontend
     environment:
       USERS_URL: http://users:8081
       LEDGER_URL: http://ledger:8082
       STATEMENTS_URL: http://statements:8083
+      FRAUD_URL: http://fraud:8084
       FRONTEND_SECRET: ${FRONTEND_SECRET:-demo-frontend-secret}
     ports:
       - "${FRONTEND_PORT:-8080}:8080"
@@ -81,6 +105,8 @@ services:
       ledger:
         condition: service_healthy
       statements:
+        condition: service_healthy
+      fraud:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8080/healthz').status==200 else sys.exit(1)"]
@@ -94,3 +120,5 @@ volumes:
     name: ${USERS_VOLUME:-gemini-bank_users-data}
   ledger-data:
     name: ${LEDGER_VOLUME:-gemini-bank_ledger-data}
+  fraud-data:
+    name: ${FRAUD_VOLUME:-gemini-bank_fraud-data}

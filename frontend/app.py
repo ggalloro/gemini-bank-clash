@@ -20,6 +20,7 @@ from flask import (
 USERS_URL = os.environ.get("USERS_URL", "http://localhost:8081")
 LEDGER_URL = os.environ.get("LEDGER_URL", "http://localhost:8082")
 STATEMENTS_URL = os.environ.get("STATEMENTS_URL", "http://localhost:8083")
+FRAUD_URL = os.environ.get("FRAUD_URL", "http://localhost:8084")
 TIMEOUT = 10
 
 
@@ -34,9 +35,29 @@ def create_app():
     def logged_in():
         return "token" in session
 
+    def get_pending_held_count():
+        if not logged_in():
+            return 0
+        try:
+            resp = requests.get(
+                f"{FRAUD_URL}/held-payments",
+                params={"status": "held"},
+                headers=auth_headers(),
+                timeout=3,
+            )
+            if resp.status_code == 200:
+                return len(resp.json())
+        except Exception:
+            pass
+        return 0
+
     @app.context_processor
     def inject_user():
-        return {"full_name": session.get("full_name"), "logged_in": logged_in()}
+        return {
+            "full_name": session.get("full_name"),
+            "logged_in": logged_in(),
+            "held_count": get_pending_held_count(),
+        }
 
     @app.get("/healthz")
     def healthz():
@@ -174,6 +195,41 @@ def create_app():
                     "iban": request.form.get("iban", "").strip(),
                     "name": request.form.get("beneficiary_name", "").strip(),
                 }
+            # Call fraud service right before submitting payment to the ledger
+            fraud_payload = {
+                "account_id": account_id,
+                "amount": amount,
+                "description": description,
+                "beneficiary": beneficiary,
+            }
+            try:
+                fraud_resp = requests.post(
+                    f"{FRAUD_URL}/assess",
+                    json=fraud_payload,
+                    headers=auth_headers(),
+                    timeout=25,
+                )
+                if fraud_resp.status_code == 422:
+                    flash("Payment declined: insufficient funds.", "danger")
+                    return render_template(
+                        "payment.html",
+                        account_id=account_id,
+                        internal_accounts=internal_accounts,
+                    )
+                if fraud_resp.status_code == 200:
+                    assessment = fraud_resp.json()
+                    if assessment.get("action") == "hold":
+                        held_id = assessment.get("held_payment_id")
+                        flash("Payment held for review by AI fraud protection.", "warning")
+                        return redirect(url_for("held_payment_detail", held_id=held_id))
+            except Exception:
+                flash("Fraud assessment service unavailable.", "danger")
+                return render_template(
+                    "payment.html",
+                    account_id=account_id,
+                    internal_accounts=internal_accounts,
+                )
+
             resp = requests.post(
                 f"{LEDGER_URL}/accounts/{account_id}/payments",
                 json={
@@ -199,6 +255,87 @@ def create_app():
             account_id=account_id,
             internal_accounts=internal_accounts,
         )
+
+    # ---- held payments (fraud protection) ----
+
+    @app.get("/held-payments")
+    def held_payments():
+        if not logged_in():
+            return redirect(url_for("login"))
+        resp = requests.get(
+            f"{FRAUD_URL}/held-payments",
+            headers=auth_headers(),
+            timeout=TIMEOUT,
+        )
+        payments = resp.json() if resp.status_code == 200 else []
+        return render_template("held_payments.html", payments=payments)
+
+    @app.get("/held-payments/<int:held_id>")
+    def held_payment_detail(held_id):
+        if not logged_in():
+            return redirect(url_for("login"))
+        resp = requests.get(
+            f"{FRAUD_URL}/held-payments/{held_id}",
+            headers=auth_headers(),
+            timeout=TIMEOUT,
+        )
+        if resp.status_code != 200:
+            flash("Held payment not found.", "danger")
+            return redirect(url_for("held_payments"))
+        payment = resp.json()
+        return render_template("held_payment_detail.html", payment=payment)
+
+    @app.post("/held-payments/<int:held_id>/approve")
+    def approve_held_payment(held_id):
+        if not logged_in():
+            return redirect(url_for("login"))
+        # 1. Mark approved in fraud service and retrieve payment data
+        resp = requests.post(
+            f"{FRAUD_URL}/held-payments/{held_id}/approve",
+            headers=auth_headers(),
+            timeout=TIMEOUT,
+        )
+        if resp.status_code != 200:
+            flash("Unable to approve payment.", "danger")
+            return redirect(url_for("held_payment_detail", held_id=held_id))
+
+        payment_data = resp.json().get("payment", {})
+        account_id = payment_data.get("account_id")
+
+        # 2. Submit payment directly to ledger (Rule 3: approved payment is not re-assessed)
+        ledger_resp = requests.post(
+            f"{LEDGER_URL}/accounts/{account_id}/payments",
+            json={
+                "amount": payment_data.get("amount"),
+                "description": payment_data.get("description"),
+                "beneficiary": payment_data.get("beneficiary"),
+            },
+            headers=auth_headers(),
+            timeout=TIMEOUT,
+        )
+        if ledger_resp.status_code == 201:
+            flash("Payment approved and sent.", "success")
+            return redirect(url_for("account_detail", account_id=account_id))
+        elif ledger_resp.status_code == 422:
+            flash("Payment approved but declined by ledger: insufficient funds.", "danger")
+        else:
+            flash("Payment approved but could not be processed by ledger.", "danger")
+        return redirect(url_for("held_payments"))
+
+    @app.post("/held-payments/<int:held_id>/reject")
+    def reject_held_payment(held_id):
+        if not logged_in():
+            return redirect(url_for("login"))
+        resp = requests.post(
+            f"{FRAUD_URL}/held-payments/{held_id}/reject",
+            headers=auth_headers(),
+            timeout=TIMEOUT,
+        )
+        if resp.status_code == 200:
+            flash("Payment discarded.", "info")
+        else:
+            flash("Unable to reject payment.", "danger")
+        return redirect(url_for("held_payments"))
 
     @app.get("/account/<int:account_id>/statement")
     def statement(account_id):

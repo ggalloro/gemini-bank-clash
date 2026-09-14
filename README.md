@@ -1,7 +1,7 @@
 # Gemini Bank — Microservices
 
-A small **sample** online bank, decomposed into four services that communicate
-over HTTP/JSON. Three are Python/Flask; the **ledger** is Java / Spring Boot 3.
+A small **sample** online bank, decomposed into five services that communicate
+over HTTP/JSON. Four are Python/Flask; the **ledger** is Java / Spring Boot 3.
 
 > All data is synthetic. No real credentials, accounts, or anything sensitive.
 
@@ -11,15 +11,15 @@ over HTTP/JSON. Three are Python/Flask; the **ledger** is Java / Spring Boot 3.
                 ┌──────────────┐
    browser ───▶ │   frontend   │  :8080  (UI only, no DB)
                 └──────┬───────┘
-            ┌──────────┼───────────────┐
-            ▼          ▼               ▼
-     ┌────────────┐ ┌────────────┐ ┌──────────────┐
-     │   users    │ │   ledger   │ │  statements  │
-     │   :8081    │ │   :8082    │ │    :8083     │
-     │  users.db  │ │ ledger.db  │ │   (no DB)    │
-     └────────────┘ └─────┬──────┘ └──────┬───────┘
-                          └───── REST ────┘
-                       (statements reads from ledger)
+            ┌──────────┼───────────────┬────────────────┐
+            ▼          ▼               ▼                ▼
+     ┌────────────┐ ┌────────────┐ ┌──────────────┐ ┌──────────────┐
+     │   users    │ │   ledger   │ │  statements  │ │    fraud     │ :8084
+     │   :8081    │ │   :8082    │ │    :8083     │ │   fraud.db   │ (owns held payments,
+     │  users.db  │ │ ledger.db  │ │   (no DB)    │ └──────┬───────┘  calls Gemini)
+     └────────────┘ └─────┬──────┘ └──────┬───────┘        │
+                          │               │                ▼
+                          └───── REST ────┴─────────▶ Gemini 3.7 Flash
 ```
 
 - **frontend** (`:8080`) — server-rendered Jinja2 + Bootstrap 5 (via CDN). No
@@ -32,14 +32,16 @@ over HTTP/JSON. Three are Python/Flask; the **ledger** is Java / Spring Boot 3.
   external), and a raw internal transaction feed.
 - **statements** (`:8083`) — Python/Flask. Read-only reporting. No database of
   its own; it calls the ledger's internal API and aggregates in memory.
+- **fraud** (`:8084`) — Python/Flask. Owns held payments in `fraud.db`. Uses
+  Gemini 3.7 Flash to evaluate outgoing payments for fraud risk before funds move.
 
 **Database-per-service:** no service ever opens another service's database file.
 Cross-service reads go over HTTP.
 
 **Auth:** the users service mints a JWT (HS256) signed with the shared
 `TOKEN_SECRET` carrying `user_id` and `full_name`; the frontend forwards it as
-`Authorization: Bearer <token>`; the Java ledger validates the signature with
-the same secret.
+`Authorization: Bearer <token>`; the Java ledger and Python fraud services validate
+the signature with the same secret.
 
 ## Repository layout
 
@@ -50,7 +52,8 @@ gemini-bank-microservices/
 ├── frontend/     # Python/Flask — UI only, no DB
 ├── users/        # Python/Flask — identity; mints JWTs
 ├── ledger/       # Java / Spring Boot 3 — money
-└── statements/   # Python/Flask — read-only reporting
+├── statements/   # Python/Flask — read-only reporting
+└── fraud/        # Python/Flask — AI fraud protection; owns fraud.db
 ```
 
 ## Key business rules (ledger)

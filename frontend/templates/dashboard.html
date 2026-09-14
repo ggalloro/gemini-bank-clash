@@ -4,6 +4,18 @@
   <h3 class="mb-0">Your accounts</h3>
 </div>
 
+{% if held_count and held_count > 0 %}
+<div class="alert alert-warning d-flex justify-content-between align-items-center mb-4 shadow-sm" role="alert">
+  <div class="d-flex align-items-center">
+    <span class="fs-4 me-3">🛡️</span>
+    <div>
+      <strong>Fraud Protection Notice:</strong> You have <strong>{{ held_count }}</strong> outgoing payment(s) held for your review.
+    </div>
+  </div>
+  <a href="{{ url_for('held_payments') }}" class="btn btn-warning btn-sm fw-semibold">Review held payments</a>
+</div>
+{% endif %}
+
 {% if accounts %}
 <div class="row g-3">
   {% for acc in accounts %}
