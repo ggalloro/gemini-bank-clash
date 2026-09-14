@@ -91,4 +91,6 @@ services:
 
 volumes:
   users-data:
+    name: ${USERS_VOLUME:-gemini-bank_users-data}
   ledger-data:
+    name: ${LEDGER_VOLUME:-gemini-bank_ledger-data}
