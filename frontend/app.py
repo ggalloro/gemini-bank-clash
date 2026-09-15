@@ -25,6 +25,8 @@ TIMEOUT = 10
 
 def create_app():
     app = Flask(__name__)
+    from telemetry import setup_telemetry
+    setup_telemetry(app, "frontend")
     app.secret_key = os.environ.get("FRONTEND_SECRET", "dev-frontend-secret")
 
     def auth_headers():

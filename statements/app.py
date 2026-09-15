@@ -8,6 +8,8 @@ from flask import Flask, jsonify, request
 from datetime import datetime
 
 app = Flask(__name__)
+from telemetry import setup_telemetry
+setup_telemetry(app, "statements")
 
 LEDGER_URL = os.environ.get("LEDGER_URL", "http://localhost:8082")
 

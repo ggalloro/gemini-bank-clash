@@ -18,6 +18,8 @@ from auth import make_token, require_auth
 
 def create_app():
     app = Flask(__name__)
+    from telemetry import setup_telemetry
+    setup_telemetry(app, "users")
     models.init_db()
 
     @app.get("/healthz")
