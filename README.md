@@ -44,13 +44,21 @@ the same secret.
 ## Repository layout
 
 ```
-gemini-bank-microservices/
+gemini-bank-clash/
 ├── docker-compose.yml
 ├── seed.py
 ├── frontend/     # Python/Flask — UI only, no DB
 ├── users/        # Python/Flask — identity; mints JWTs
 ├── ledger/       # Java / Spring Boot 3 — money
-└── statements/   # Python/Flask — read-only reporting
+├── statements/   # Python/Flask — read-only reporting
+├── .agents/      # Antigravity project configuration
+│   ├── agents/   # Custom subagents (contract-guardian, go-modernizer, java-qa, python-qa, go-qa)
+│   ├── skills/   # Standard operating procedures (service-modernization, code-review)
+│   ├── hooks/    # PreToolUse guardrails (block-destructive-ops)
+│   └── hooks.json
+└── .github/      # CI/CD and automation
+    ├── workflows/# Antigravity Coder & PR Reviewer workflows
+    └── scripts/  # Runner scripts for autonomous tasks
 ```
 
 ## Key business rules (ledger)
@@ -78,12 +86,16 @@ up and usable within ~30 seconds. Tear down with `docker compose down -v`.
 `seed.py` defaults to `localhost` on the published ports, so running it on the
 host works as-is.
 
-### Running a second stack (per-service ports)
+### Running a second stack (per-service ports & shared volumes)
 
 Published host ports are env vars with defaults (`FRONTEND_PORT` 8080,
 `USERS_PORT` 8081, `LEDGER_PORT` 8082, `STATEMENTS_PORT` 8083); container ports
-never change. To run a **second** stack side by side, apply an offset and a
-distinct project name:
+never change. In addition, SQLite database volumes (`users-data` and `ledger-data`)
+are configurable via `USERS_VOLUME` and `LEDGER_VOLUME` (defaulting to
+`gemini-bank_users-data` and `gemini-bank_ledger-data`).
+
+This enables running isolated Git worktree stacks on offset ports (e.g. `9080` / `9083`)
+while mounting the same pre-seeded database volumes without reseeding:
 
 ```bash
 COMPOSE_PROJECT_NAME=gemini-bank-2 \
@@ -129,12 +141,49 @@ atomic internal payment).
 | `LEDGER_DB`       | ledger               | `ledger.db`              |
 | `FRONTEND_SECRET` | frontend             | `dev-frontend-secret`    |
 
-## Safety hook
+## Antigravity Assets: Subagents, Skills & Hooks
 
-The repo ships an Antigravity `PreToolUse` safety gate at `.agents/hooks.json`
-+ `.agents/hooks/block-destructive-ops.sh`. It denies irreversible shell
-commands (`git push --force`, `git reset --hard`, `rm -rf /`, `chmod 777`,
-`curl | bash`, …) for every agent conversation in this project.
+This repository is configured for agentic pair-programming and autonomous workflows using [Google Antigravity](https://cloud.google.com/products/gemini/antigravity). Rather than maintaining drift-prone requirements documents or giving a single AI agent root access to both application code and test assertions, this repository defines strict role boundaries, tool isolation, and codified standard operating procedures directly under `.agents/`.
+
+### 1. Specialized Subagents (`.agents/agents/`)
+
+Subagents run in their own isolated execution context with specialized system prompts and restricted toolsets:
+
+| Subagent | Manifest | Role & Constraints | Invoked When |
+|---|---|---|---|
+| `@contract-guardian` | [`contract-guardian.md`](.agents/agents/contract-guardian.md) | **Read-only contract recorder.** Probes the running legacy Python service, captures live HTTP response bodies verbatim as golden JSON fixtures, and writes automated characterization tests in Python. **Strictly forbidden from modifying Go code.** | Phase 1 of service modernization, before any re-platforming starts. |
+| `@go-modernizer` | [`go-modernizer.md`](.agents/agents/go-modernizer.md) | **Modernization engineer.** Re-implements the service in Go and containerizes it in Docker. Guided strictly by the characterization test suite until 100% of fixtures pass. **Strictly forbidden from modifying test assertions or writing temporary test runners.** | Phase 2 of service modernization, after fixtures are locked. |
+| `@java-qa` | [`java-qa.md`](.agents/agents/java-qa.md) | **Java/Spring Boot QA engineer.** Specialized in building and testing the `ledger` service (`mvn test`). Executes JUnit and MockMvc suites in an isolated context. | Integration and PR verification on `main`. |
+| `@python-qa` | [`python-qa.md`](.agents/agents/python-qa.md) | **Python QA engineer.** Specialized in executing pytest suites across Python services (`users`, and new services like `fraud`). | Verification of Python services and integration on `main`. |
+| `@go-qa` | [`go-qa.md`](.agents/agents/go-qa.md) | **Go QA engineer.** Specialized in verifying Go services (`go test`, Docker builds, characterization assertions). | Post-modernization verification and integration on `main`. |
+
+#### Multi-Specialist Parallel QA Verification
+During multi-branch integration on `main`, the lead agent does not run monolithic, sequential test passes. Instead, it dispatches `@java-qa`, `@python-qa`, and `@go-qa` concurrently to verify their respective services in parallel:
+```
+                     ┌──▶ @java-qa    ──▶ ( cd ledger && mvn test )
+Lead Agent (main) ───┼──▶ @python-qa  ──▶ ( cd users && pytest ) + ( cd fraud && pytest )
+                     └──▶ @go-qa      ──▶ ( cd statements && pytest tests/ )
+```
+
+### 2. Standard Operating Procedures / Skills (`.agents/skills/`)
+
+Skills are on-demand procedures loaded by Antigravity agents into their reasoning context:
+
+* **`service-modernization`** ([`SKILL.md`](.agents/skills/service-modernization/SKILL.md)): Clean-room modernization playbook. Codifies:
+  - Fast planning protocol (zero initial probing during plan formulation).
+  - Strict clean-room delegation sequence (`@contract-guardian` -> `@go-modernizer`).
+  - Worktree port offset conventions (`:9080` / `:9083`) and automated database volume sharing.
+  - Definition of Done: 100% pass rate on characterization assertions against the offset container port.
+* **`code-review`** ([`SKILL.md`](.agents/skills/code-review/SKILL.md)): Automated architectural and security guidelines. Enforces database-per-service isolation, authentication boundaries (HS256 JWT validation), and test coverage for new code paths. Used by the PR reviewer bot.
+
+### 3. Safety Guardrails (`.agents/hooks/`)
+
+* **`PreToolUse` Safety Gate** ([`hooks.json`](.agents/hooks.json) + [`block-destructive-ops.sh`](.agents/hooks/block-destructive-ops.sh)): Intercepts all command execution requests before they reach the shell. Automatically denies destructive or irreversible operations:
+  - Force-pushing to git (`git push --force`)
+  - Hard reset of working branches (`git reset --hard`)
+  - Broad destructive file removals (`rm -rf /`, `rm -rf ~`, `rm -rf *`)
+  - Unsafe privilege escalations (`chmod 777`)
+  - Arbitrary remote script execution (`curl | bash`, `wget | sh`)
 
 ## GitHub Workflows
 
