@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h3 class="mb-1">Held Payments</h3>
+    <p class="text-muted mb-0">Payments paused for your review by AI Fraud Protection.</p>
+  </div>
+  <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm">Back to Dashboard</a>
+</div>
+
+{% if payments %}
+<div class="card shadow-sm">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>ID</th>
+          <th>Created</th>
+          <th>Amount</th>
+          <th>Beneficiary</th>
+          <th>Risk Level</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in payments %}
+        <tr>
+          <td>#{{ p.id }}</td>
+          <td>{{ p.created_at[:19].replace("T", " ") }}</td>
+          <td class="fw-bold">€{{ p.amount }}</td>
+          <td>
+            {% if p.beneficiary_type == 'internal' %}
+              <span class="badge bg-info text-dark">Internal</span> Account #{{ p.beneficiary_account_id }}
+            {% else %}
+              <span class="badge bg-secondary">External</span> {{ p.beneficiary_name or p.beneficiary_iban }}
+            {% endif %}
+          </td>
+          <td>
+            {% if p.risk_level == 'High' %}
+              <span class="badge bg-danger">{{ p.risk_label or 'High risk' }}</span>
+            {% elif p.risk_level == 'Medium' %}
+              <span class="badge bg-warning text-dark">{{ p.risk_label or 'Suspicious' }}</span>
+            {% else %}
+              <span class="badge bg-success">{{ p.risk_label or 'No clear risk' }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if p.status == 'held' %}
+              <span class="badge bg-warning text-dark">Held for review</span>
+            {% elif p.status == 'approved' %}
+              <span class="badge bg-success">Approved</span>
+            {% elif p.status == 'rejected' %}
+              <span class="badge bg-secondary">Rejected</span>
+            {% endif %}
+          </td>
+          <td>
+            <a class="btn btn-primary btn-sm" href="{{ url_for('held_payment_detail', held_id=p.id) }}">Review</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="card shadow-sm text-center py-5">
+  <div class="card-body">
+    <h5 class="card-title text-muted">No held payments</h5>
+    <p class="card-text text-muted">All your payments have completed normally without any fraud holds.</p>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-sm">Go to Dashboard</a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
